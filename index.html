@@ -2,94 +2,81 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>3D Table Tennis Game</title>
+    <title>3D Tennis Court Explorer</title>
     <style>
-        body { margin: 0; }
-        canvas { display: block; }
+        body { margin: 0; overflow: hidden; }
+        canvas { width: 100%; height: 100%; display: block; }
     </style>
 </head>
 <body>
     <script src="https://unpkg.com/three@0.140.0/build/three.min.js"></script>
+    <script src="https://threejs.org/examples/js/controls/PointerLockControls.js"></script>
     <script>
-        let scene, camera, renderer;
-        let paddleWidth, paddleHeight, paddleDepth, paddleGeom, playerPaddle, aiPaddle, ball, ballRadius;
-        let playerScore = 0, aiScore = 0;
-        let ballDirection = new THREE.Vector3(-1, 0, 1);
+        let camera, scene, renderer, controls;
 
         function init() {
             scene = new THREE.Scene();
-            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-            renderer = new THREE.WebGLRenderer();
+            scene.background = new THREE.Color(0x87CEEB); // Light blue sky
+
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 1, 1000);
+
+            renderer = new THREE.WebGLRenderer({ antialias: true });
             renderer.setSize(window.innerWidth, window.innerHeight);
             document.body.appendChild(renderer.domElement);
 
-            // Add paddles
-            paddleWidth = 2;
-            paddleHeight = 10;
-            paddleDepth = 1;
-            paddleGeom = new THREE.BoxGeometry(paddleWidth, paddleHeight, paddleDepth);
-            let paddleMat = new THREE.MeshBasicMaterial({color: 0x00ff00});
+            // Controls setup
+            controls = new THREE.PointerLockControls(camera, document.body);
+            document.addEventListener('click', () => {
+                controls.lock();
+            });
 
-            playerPaddle = new THREE.Mesh(paddleGeom, paddleMat);
-            aiPaddle = new THREE.Mesh(paddleGeom, paddleMat);
+            // Lighting
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.4);
+            const directionalLight = new THREE.DirectionalLight(0xffffff, 0.6);
+            directionalLight.position.set(10, 20, 0);
+            scene.add(ambientLight);
+            scene.add(directionalLight);
 
-            playerPaddle.position.x = -35;
-            aiPaddle.position.x = 35;
+            // Tennis court
+            const loader = new THREE.TextureLoader();
+            const groundTexture = loader.load('https://i.imgur.com/Ru5b8s8.jpg'); // Placeholder texture
+            groundTexture.wrapS = groundTexture.wrapT = THREE.RepeatWrapping;
+            groundTexture.repeat.set(2, 2);
 
-            scene.add(playerPaddle);
-            scene.add(aiPaddle);
+            const groundMaterial = new THREE.MeshLambertMaterial({ map: groundTexture });
+            const groundGeometry = new THREE.PlaneGeometry(40, 20);
+            const ground = new THREE.Mesh(groundGeometry, groundMaterial);
+            ground.rotation.x = -Math.PI / 2;
+            scene.add(ground);
 
-            // Add ball
-            ballRadius = 1;
-            let ballGeom = new THREE.SphereGeometry(ballRadius, 32, 32);
-            let ballMat = new THREE.MeshBasicMaterial({color: 0xff0000});
-            ball = new THREE.Mesh(ballGeom, ballMat);
-            ball.position.z = -1; // Slightly in front of paddles for visibility
+            // Net
+            const netGeometry = new THREE.BoxGeometry(0.1, 1, 20);
+            const netMaterial = new THREE.MeshBasicMaterial({ color: 0xffffff });
+            const net = new THREE.Mesh(netGeometry, netMaterial);
+            net.position.y = 0.5;
+            scene.add(net);
 
-            scene.add(ball);
-
-            // Camera setup
-            camera.position.z = 50;
+            animate();
         }
 
         function animate() {
             requestAnimationFrame(animate);
 
-            // Simple AI for moving the AI paddle
-            aiPaddle.position.y += (ball.position.y - aiPaddle.position.y) * 0.05;
-
-            // Ball movement logic
-            ball.position.add(ballDirection);
-
-            // Collision detection with top and bottom walls
-            if (ball.position.y >= 20 || ball.position.y <= -20) {
-                ballDirection.y = -ballDirection.y;
-            }
-
-            // Check collision with paddles
-            checkPaddleCollision(playerPaddle);
-            checkPaddleCollision(aiPaddle);
-
-            // Check for scoring
-            if (ball.position.x <= -40 || ball.position.x >= 40) {
-                if (ball.position.x <= -40) aiScore++;
-                if (ball.position.x >= 40) playerScore++;
-                ball.position.set(0, 0, -1); // Reset ball position
-                ballDirection = new THREE.Vector3((ball.position.x < 0 ? 1 : -1), 0, (Math.random() > 0.5 ? 1 : -1));
-            }
+            // Update controls
+            controls.update();
 
             renderer.render(scene, camera);
         }
 
-        function checkPaddleCollision(paddle) {
-            let bounds = new THREE.Box3().setFromObject(paddle);
-            if (bounds.containsPoint(ball.position)) {
-                ballDirection.x = -ballDirection.x;
-            }
+        window.addEventListener('resize', onWindowResize, false);
+
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
         }
 
         init();
-        animate();
     </script>
 </body>
 </html>
