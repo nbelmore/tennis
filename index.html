@@ -1,112 +1,95 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<title>Table Tennis Game</title>
-<style>
-  canvas {
-    background-color: #f3f3f3;
-    display: block;
-    margin: auto;
-  }
-</style>
+    <meta charset="UTF-8">
+    <title>3D Table Tennis Game</title>
+    <style>
+        body { margin: 0; }
+        canvas { display: block; }
+    </style>
 </head>
 <body>
-<canvas id="pongCanvas"></canvas>
-<script>
-  const canvas = document.getElementById('pongCanvas');
-  const ctx = canvas.getContext('2d');
+    <script src="https://unpkg.com/three@0.140.0/build/three.min.js"></script>
+    <script>
+        let scene, camera, renderer;
+        let paddleWidth, paddleHeight, paddleDepth, paddleGeom, playerPaddle, aiPaddle, ball, ballRadius;
+        let playerScore = 0, aiScore = 0;
+        let ballDirection = new THREE.Vector3(-1, 0, 1);
 
-  canvas.width = 800;
-  canvas.height = 400;
+        function init() {
+            scene = new THREE.Scene();
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+            renderer = new THREE.WebGLRenderer();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            document.body.appendChild(renderer.domElement);
 
-  // Ball object
-  let ball = {
-    x: canvas.width / 2,
-    y: canvas.height / 2,
-    radius: 10,
-    dx: 5,
-    dy: 5
-  };
+            // Add paddles
+            paddleWidth = 2;
+            paddleHeight = 10;
+            paddleDepth = 1;
+            paddleGeom = new THREE.BoxGeometry(paddleWidth, paddleHeight, paddleDepth);
+            let paddleMat = new THREE.MeshBasicMaterial({color: 0x00ff00});
 
-  // Player Paddle
-  let player = {
-    x: 10,
-    y: canvas.height / 2 - 40,
-    width: 10,
-    height: 80,
-    score: 0
-  };
+            playerPaddle = new THREE.Mesh(paddleGeom, paddleMat);
+            aiPaddle = new THREE.Mesh(paddleGeom, paddleMat);
 
-  // AI Paddle
-  let ai = {
-    x: canvas.width - 20,
-    y: canvas.height / 2 - 40,
-    width: 10,
-    height: 80,
-    score: 0
-  };
+            playerPaddle.position.x = -35;
+            aiPaddle.position.x = 35;
 
-  // Listen to mouse movement
-  canvas.addEventListener('mousemove', function(event) {
-    player.y = event.clientY - canvas.getBoundingClientRect().top - player.height / 2;
-  });
+            scene.add(playerPaddle);
+            scene.add(aiPaddle);
 
-  function drawBall() {
-    ctx.beginPath();
-    ctx.arc(ball.x, ball.y, ball.radius, 0, Math.PI * 2, false);
-    ctx.fillStyle = 'black';
-    ctx.fill();
-    ctx.closePath();
-  }
+            // Add ball
+            ballRadius = 1;
+            let ballGeom = new THREE.SphereGeometry(ballRadius, 32, 32);
+            let ballMat = new THREE.MeshBasicMaterial({color: 0xff0000});
+            ball = new THREE.Mesh(ballGeom, ballMat);
+            ball.position.z = -1; // Slightly in front of paddles for visibility
 
-  function drawPaddle(x, y, width, height) {
-    ctx.fillStyle = 'blue';
-    ctx.fillRect(x, y, width, height);
-  }
+            scene.add(ball);
 
-  function resetBall() {
-    ball.x = canvas.width / 2;
-    ball.y = canvas.height / 2;
-    ball.dx = -ball.dx;
-    ball.dy = 5;
-  }
+            // Camera setup
+            camera.position.z = 50;
+        }
 
-  function update() {
-    ball.x += ball.dx;
-    ball.y += ball.dy;
+        function animate() {
+            requestAnimationFrame(animate);
 
-    // AI paddle movement
-    ai.y += (ball.y - (ai.y + ai.height / 2)) * 0.1;
+            // Simple AI for moving the AI paddle
+            aiPaddle.position.y += (ball.position.y - aiPaddle.position.y) * 0.05;
 
-    // Ball collision with top and bottom
-    if (ball.y + ball.radius > canvas.height || ball.y - ball.radius < 0) {
-      ball.dy = -ball.dy;
-    }
+            // Ball movement logic
+            ball.position.add(ballDirection);
 
-    // Ball collision with paddles
-    if (ball.x + ball.radius > ai.x && ball.y > ai.y && ball.y < ai.y + ai.height ||
-        ball.x - ball.radius < player.x + player.width && ball.y > player.y && ball.y < player.y + player.height) {
-      ball.dx = -ball.dx;
-    }
+            // Collision detection with top and bottom walls
+            if (ball.position.y >= 20 || ball.position.y <= -20) {
+                ballDirection.y = -ballDirection.y;
+            }
 
-    // Point scoring
-    if (ball.x + ball.radius < 0) {
-      ai.score++;
-      resetBall();
-    } else if (ball.x - ball.radius > canvas.width) {
-      player.score++;
-      resetBall();
-    }
+            // Check collision with paddles
+            checkPaddleCollision(playerPaddle);
+            checkPaddleCollision(aiPaddle);
 
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    drawBall();
-    drawPaddle(player.x, player.y, player.width, player.height);
-    drawPaddle(ai.x, ai.y, ai.width, ai.height);
-    requestAnimationFrame(update);
-  }
+            // Check for scoring
+            if (ball.position.x <= -40 || ball.position.x >= 40) {
+                if (ball.position.x <= -40) aiScore++;
+                if (ball.position.x >= 40) playerScore++;
+                ball.position.set(0, 0, -1); // Reset ball position
+                ballDirection = new THREE.Vector3((ball.position.x < 0 ? 1 : -1), 0, (Math.random() > 0.5 ? 1 : -1));
+            }
 
-  update();
-</script>
+            renderer.render(scene, camera);
+        }
+
+        function checkPaddleCollision(paddle) {
+            let bounds = new THREE.Box3().setFromObject(paddle);
+            if (bounds.containsPoint(ball.position)) {
+                ballDirection.x = -ballDirection.x;
+            }
+        }
+
+        init();
+        animate();
+    </script>
 </body>
 </html>
